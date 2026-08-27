@@ -224,7 +224,7 @@
                     "enabled": false
                 },
                 "general": {
-                    "enabled": false
+                    "enabled": true
                 }
             },
             "version": "1.0.0"
