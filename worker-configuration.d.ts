@@ -9,7 +9,7 @@ declare namespace Cloudflare {
 		VibecoderStore: KVNamespace;
 		TEMPLATES_BUCKET: R2Bucket;
 		DB: D1Database;
-		DISPATCHER: DispatchNamespace;
+		DISPATCHER?: DispatchNamespace;
 		ARTIFACTS: Artifacts;
 		LOADER: WorkerLoader;
 		BROWSER: Fetcher;
@@ -19,7 +19,7 @@ declare namespace Cloudflare {
 		TEMPLATES_REPOSITORY: "https://github.com/cloudflare/vibesdk-templates";
 		DISPATCH_NAMESPACE: "vibesdk-default-namespace";
 		ARTIFACTS_NAMESPACE: "vibesdk-production";
-		PLATFORM_CAPABILITIES: {"features":{"app":{"enabled":true},"presentation":{"enabled":false},"general":{"enabled":false}},"version":"1.0.0"};
+		PLATFORM_CAPABILITIES: {"features":{"app":{"enabled":true},"presentation":{"enabled":false},"general":{"enabled":true}},"version":"1.0.0"};
 		MAX_SANDBOX_INSTANCES: "10";
 		SANDBOX_INSTANCE_TYPE: "standard-3";
 		DEV_BROWSER_SIDECAR_URL: "http://127.0.0.1:9223";

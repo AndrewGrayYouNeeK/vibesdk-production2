@@ -6,6 +6,44 @@ import path from 'path';
 
 import { cloudflare } from '@cloudflare/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+/** Strip dispatch namespace bindings from generated Worker config. */
+function stripDispatchNamespacePlugin() {
+	return {
+		name: 'strip-dispatch-namespace',
+		enforce: 'post' as const,
+		closeBundle() {
+			const distRoot = join(process.cwd(), 'dist');
+			if (!existsSync(distRoot)) return;
+			for (const entry of readdirSync(distRoot, { withFileTypes: true })) {
+				if (!entry.isDirectory()) continue;
+				const wranglerPath = join(distRoot, entry.name, 'wrangler.json');
+				if (!existsSync(wranglerPath)) continue;
+				const config = JSON.parse(readFileSync(wranglerPath, 'utf8')) as {
+					dispatch_namespaces?: unknown;
+					vars?: Record<string, unknown>;
+				};
+				let changed = false;
+				if ('dispatch_namespaces' in config) {
+					delete config.dispatch_namespaces;
+					changed = true;
+				}
+				if (config.vars && 'DISPATCH_NAMESPACE' in config.vars) {
+					delete config.vars.DISPATCH_NAMESPACE;
+					changed = true;
+				}
+				if (changed) {
+					writeFileSync(wranglerPath, `${JSON.stringify(config, null, 2)}\n`);
+					console.log(
+						`strip-dispatch-namespace: removed DISPATCHER from ${wranglerPath}`,
+					);
+				}
+			}
+		},
+	};
+}
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -30,6 +68,7 @@ export default defineConfig({
 		cloudflare({
 			configPath: 'wrangler.jsonc',
 		}),
+		stripDispatchNamespacePlugin(),
 		tailwindcss(),
 		// sentryVitePlugin({
 		// 	org: 'cloudflare-0u',

@@ -199,7 +199,11 @@ async function handleUserAppRequest(request: Request, env: Env): Promise<Respons
 	}
 	// public apps, anonymous apps (userId === null), and verified owners fall through.
 
-	const dispatcher = env['DISPATCHER'];
+	const dispatcher = env.DISPATCHER;
+	if (!dispatcher) {
+		logger.warn(`Dispatcher binding missing, cannot serve: ${hostname}`);
+		return new Response('This application is not currently available.', { status: 404 });
+	}
 
 	try {
 		const worker = dispatcher.get(appName);
