@@ -15,7 +15,7 @@
 		"postinstall": "bun run --cwd space build",
 		"dev": "DEV_MODE=true vite",
 		"dev:browser": "tsx scripts/dev-browser-sidecar.ts",
-		"build": "bun run --cwd space build && vite build",
+		"build": "bun run --cwd space build && vite build && node scripts/sanitize-deploy-wrangler.mjs",
 		"typecheck": "tsc -b --incremental --noEmit",
 		"lint": "eslint .",
 		"preview": "npm run build && vite preview",
