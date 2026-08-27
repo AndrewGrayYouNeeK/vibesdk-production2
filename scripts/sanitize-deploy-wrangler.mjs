@@ -39,6 +39,17 @@ for (const path of wranglerFiles) {
 
 	if (changed) {
 		writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
-		console.log(`sanitize-deploy-wrangler: removed dispatch namespace config from ${path}`);
+		console.log(`SANITIZE_DISPATCH: removed DISPATCHER from ${path}`);
+	}
+
+	const verify = JSON.parse(readFileSync(path, 'utf8'));
+	if (
+		(Array.isArray(verify.dispatch_namespaces) &&
+			verify.dispatch_namespaces.length > 0) ||
+		verify.vars?.DISPATCH_NAMESPACE
+	) {
+		throw new Error(
+			`SANITIZE_DISPATCH: ${path} still contains a dispatch namespace; refusing to produce a deploy config that would hit API 10121`,
+		);
 	}
 }
