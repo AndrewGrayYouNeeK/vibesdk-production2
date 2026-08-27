@@ -82,13 +82,18 @@
 		"binding": "BROWSER",
 		"remote": true
 	},
-    "dispatch_namespaces": [
-        {
-            "binding": "DISPATCHER",
-            "namespace": "vibesdk-default-namespace",
-            "remote": true
-        }
-    ],
+	// Workers for Platforms dispatch namespace. This account does not currently
+	// have dispatch-namespace access (API 10121), so the binding is omitted so
+	// `wrangler versions upload` / Workers Builds can succeed. Runtime code
+	// already treats a missing DISPATCHER as "preview worker unavailable".
+	// Re-enable when Workers for Platforms is purchased:
+	// "dispatch_namespaces": [
+	//     {
+	//         "binding": "DISPATCHER",
+	//         "namespace": "vibesdk-default-namespace",
+	//         "remote": true
+	//     }
+	// ],
     "artifacts": [
         {
             "binding": "ARTIFACTS",

@@ -9,7 +9,7 @@ declare namespace Cloudflare {
 		VibecoderStore: KVNamespace;
 		TEMPLATES_BUCKET: R2Bucket;
 		DB: D1Database;
-		DISPATCHER: DispatchNamespace;
+		DISPATCHER?: DispatchNamespace;
 		ARTIFACTS: Artifacts;
 		LOADER: WorkerLoader;
 		BROWSER: Fetcher;
