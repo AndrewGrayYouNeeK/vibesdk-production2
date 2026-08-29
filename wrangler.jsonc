@@ -228,6 +228,6 @@
         "DEV_BROWSER_SIDECAR_URL": "http://127.0.0.1:9223",
         "DEV_BROWSER_PREVIEW_ORIGIN": "http://localhost:5173"
     },
-	"workers_dev": false,
+	"workers_dev": true,
 	"preview_urls": false
 }

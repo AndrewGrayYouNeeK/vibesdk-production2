@@ -77,13 +77,6 @@
 		"binding": "BROWSER",
 		"remote": true
 	},
-    "dispatch_namespaces": [
-        {
-            "binding": "DISPATCHER",
-            "namespace": "vibesdk-staging-namespace",
-            "remote": true
-        }
-    ],
     "artifacts": [
         {
             "binding": "ARTIFACTS",
@@ -210,7 +203,6 @@
     ],
 	"vars": {
         "TEMPLATES_REPOSITORY": "https://github.com/cloudflare/vibesdk-templates",
-        "DISPATCH_NAMESPACE": "vibesdk-staging-namespace",
         "CLOUDFLARE_AI_GATEWAY": "vibesdk-gateway",
         // Cloudflare Artifacts namespace for the read-only Repo viewer proxy.
         // Must match the `artifacts` binding namespace above.

@@ -17,7 +17,7 @@ declare namespace Cloudflare {
 		CF_VERSION_METADATA: WorkerVersionMetadata;
 		ASSETS: Fetcher;
 		TEMPLATES_REPOSITORY: "https://github.com/cloudflare/vibesdk-templates";
-		DISPATCH_NAMESPACE: "vibesdk-default-namespace";
+		DISPATCH_NAMESPACE?: string;
 		ARTIFACTS_NAMESPACE: "vibesdk-production";
 		PLATFORM_CAPABILITIES: {"features":{"app":{"enabled":true},"presentation":{"enabled":false},"general":{"enabled":true}},"version":"1.0.0"};
 		MAX_SANDBOX_INSTANCES: "10";
