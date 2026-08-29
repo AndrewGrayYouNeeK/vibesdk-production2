@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.15'
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bunx vitest run worker/api/controllers/capabilities/controller.test.ts
+      - run: bun run build
+      - name: Assert generated Worker config has no DISPATCHER
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = 'dist/vibesdk_production2/wrangler.json';
+            const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+            if (cfg.dispatch_namespaces?.length) {
+              throw new Error('dispatch_namespaces still present in generated wrangler.json');
+            }
+            if (cfg.vars?.DISPATCH_NAMESPACE) {
+              throw new Error('DISPATCH_NAMESPACE var still present in generated wrangler.json');
+            }
+            const keep = cfg.unsafe?.metadata?.keep_bindings || [];
+            if (!keep.includes('dispatch_namespace')) {
+              throw new Error('keep_bindings must inherit dispatch_namespace to avoid API 10121');
+            }
+            console.log('ok: no dispatch namespace in generated deploy config');
+          "

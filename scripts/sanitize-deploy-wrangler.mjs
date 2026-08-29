@@ -37,6 +37,24 @@ for (const path of wranglerFiles) {
 		changed = true;
 	}
 
+	const keepBindings = [
+		'plain_text',
+		'json',
+		'secret_text',
+		'secret_key',
+		'dispatch_namespace',
+	];
+	const unsafe = (config.unsafe ??= {});
+	const metadata = (unsafe.metadata ??= {});
+	const existingKeep = Array.isArray(metadata.keep_bindings)
+		? metadata.keep_bindings.filter((value) => typeof value === 'string')
+		: [];
+	const mergedKeep = [...new Set([...existingKeep, ...keepBindings])];
+	if (JSON.stringify(existingKeep) !== JSON.stringify(mergedKeep)) {
+		metadata.keep_bindings = mergedKeep;
+		changed = true;
+	}
+
 	if (changed) {
 		writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
 		console.log(`SANITIZE_DISPATCH: removed DISPATCHER from ${path}`);
@@ -50,6 +68,11 @@ for (const path of wranglerFiles) {
 	) {
 		throw new Error(
 			`SANITIZE_DISPATCH: ${path} still contains a dispatch namespace; refusing to produce a deploy config that would hit API 10121`,
+		);
+	}
+	if (!verify.unsafe?.metadata?.keep_bindings?.includes('dispatch_namespace')) {
+		throw new Error(
+			`SANITIZE_DISPATCH: ${path} is missing keep_bindings dispatch_namespace inherit`,
 		);
 	}
 }
