@@ -67,7 +67,16 @@
                 "namespace_id": "2102",
                 "simple": { "limit": 1000, "period": 60 }
             }
-        ]
+        ],
+        "metadata": {
+            "keep_bindings": [
+                "plain_text",
+                "json",
+                "secret_text",
+                "secret_key",
+                "dispatch_namespace"
+            ]
+        }
     },
 	"ai": {
 		"binding": "AI",

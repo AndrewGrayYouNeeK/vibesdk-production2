@@ -28,5 +28,9 @@ jobs:
             if (cfg.vars?.DISPATCH_NAMESPACE) {
               throw new Error('DISPATCH_NAMESPACE var still present in generated wrangler.json');
             }
+            const keep = cfg.unsafe?.metadata?.keep_bindings || [];
+            if (!keep.includes('dispatch_namespace')) {
+              throw new Error('keep_bindings must inherit dispatch_namespace to avoid API 10121');
+            }
             console.log('ok: no dispatch namespace in generated deploy config');
           "

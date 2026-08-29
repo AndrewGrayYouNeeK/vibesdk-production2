@@ -24,6 +24,7 @@ function stripDispatchNamespacePlugin() {
 				const config = JSON.parse(readFileSync(wranglerPath, 'utf8')) as {
 					dispatch_namespaces?: unknown;
 					vars?: Record<string, unknown>;
+					unsafe?: Record<string, unknown>;
 				};
 				let changed = false;
 				if ('dispatch_namespaces' in config) {
@@ -32,6 +33,31 @@ function stripDispatchNamespacePlugin() {
 				}
 				if (config.vars && 'DISPATCH_NAMESPACE' in config.vars) {
 					delete config.vars.DISPATCH_NAMESPACE;
+					changed = true;
+				}
+				const keepBindings = [
+					'plain_text',
+					'json',
+					'secret_text',
+					'secret_key',
+					'dispatch_namespace',
+				];
+				const unsafe =
+					typeof config.unsafe === 'object' && config.unsafe !== null
+						? (config.unsafe as Record<string, unknown>)
+						: {};
+				const metadata =
+					typeof unsafe.metadata === 'object' && unsafe.metadata !== null
+						? (unsafe.metadata as Record<string, unknown>)
+						: {};
+				const existingKeep = Array.isArray(metadata.keep_bindings)
+					? metadata.keep_bindings.filter((value): value is string => typeof value === 'string')
+					: [];
+				const mergedKeep = [...new Set([...existingKeep, ...keepBindings])];
+				if (JSON.stringify(existingKeep) !== JSON.stringify(mergedKeep)) {
+					metadata.keep_bindings = mergedKeep;
+					unsafe.metadata = metadata;
+					config.unsafe = unsafe;
 					changed = true;
 				}
 				if (changed) {
