@@ -70,4 +70,9 @@ for (const path of wranglerFiles) {
 			`SANITIZE_DISPATCH: ${path} still contains a dispatch namespace; refusing to produce a deploy config that would hit API 10121`,
 		);
 	}
+	if (!verify.unsafe?.metadata?.keep_bindings?.includes('dispatch_namespace')) {
+		throw new Error(
+			`SANITIZE_DISPATCH: ${path} is missing keep_bindings dispatch_namespace inherit`,
+		);
+	}
 }
