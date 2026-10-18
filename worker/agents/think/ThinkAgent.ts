@@ -11,7 +11,9 @@ import {
 	createGrepTool,
 	createDeleteTool,
 } from '@cloudflare/think/tools/workspace';
+import { Agent } from 'agents';
 import type { SkillSource } from 'agents/skills';
+import { AGENT_HUNG_SCHEDULE_TIMEOUT_SECONDS, decideIdleAlarm } from './idle-alarm';
 import { createSpaceWorkspaceOps, type SpaceWorkspaceStub } from './space-workspace-ops';
 import { selectSystemPrompt, PROMPT_MAX_STEPS } from './prompts';
 import { createThinkSkillSource } from './skills';
@@ -149,6 +151,17 @@ function fixToolCallStream(
 			},
 		}),
 	);
+}
+
+interface ThinkWorkflowNotificationDrain {
+	_hasPendingWorkflowNotifications(): boolean;
+	_drainWorkflowNotifications(): Promise<void>;
+}
+
+interface AlarmScheduleState {
+	readyScheduleTimeSeconds: number | null;
+	hungIntervalStartedAtSeconds: number | null;
+	pendingNotificationAttempts: number | null;
 }
 
 /**
@@ -379,6 +392,110 @@ export class ThinkAgent extends Think<Env> {
 				toolChoice: 'none',
 				messages: [...ctx.messages, { role: 'user', content: PROMPT_MAX_STEPS }],
 			};
+		}
+	}
+
+	/**
+	 * `Think.alarm()` starts a keep-alive around an empty notification drain, and
+	 * the installed agents runtime never clears that alarm when the drain
+	 * finishes. Call `Agent.alarm()` directly so schedules, chat recovery, and
+	 * in-flight keep-alives still run, then drop the slot when nothing is left.
+	 */
+	override async alarm(): Promise<void> {
+		await Agent.prototype.alarm.call(this);
+		// Let a keep-alive drain started during onStart finish if it only had
+		// synchronous storage work, so we observe the ref count after it.
+		await new Promise<void>((resolve) => {
+			setTimeout(resolve, 0);
+		});
+		if (this._keepAliveRefs > 0) return;
+		await this.drainIdleWorkflowNotifications();
+
+		const nowMs = Date.now();
+		const decision = decideIdleAlarm({
+			nowMs,
+			keepAliveRefs: this._keepAliveRefs,
+			...this.readAlarmScheduleState(nowMs),
+		});
+		switch (decision.action) {
+			case 'leave':
+				return;
+			case 'delete':
+				await this.ctx.storage.deleteAlarm();
+				return;
+			case 'set':
+				await this.ctx.storage.setAlarm(decision.atMs);
+				return;
+			default: {
+				const unreachable: never = decision;
+				return unreachable;
+			}
+		}
+	}
+
+	/**
+	 * Think's drain helper is private and arms keep-alive as a side effect.
+	 * Invoke it only when this object is otherwise idle, so a pending
+	 * notification is retried without leaving a permanent heartbeat behind.
+	 */
+	private async drainIdleWorkflowNotifications(): Promise<void> {
+		if (this._keepAliveRefs > 0) return;
+		const notifications = this as unknown as ThinkWorkflowNotificationDrain;
+		let pending = false;
+		try {
+			pending = notifications._hasPendingWorkflowNotifications();
+		} catch (error) {
+			console.error('[ThinkAgent] Failed to check workflow notifications', error);
+			return;
+		}
+		if (!pending) return;
+		try {
+			await notifications._drainWorkflowNotifications();
+		} catch (error) {
+			console.error('[ThinkAgent] Failed to drain workflow notifications', error);
+		}
+	}
+
+	private readAlarmScheduleState(nowMs: number): AlarmScheduleState {
+		const hungCutoffSeconds =
+			Math.floor(nowMs / 1000) - AGENT_HUNG_SCHEDULE_TIMEOUT_SECONDS;
+		const ready = this.sql`
+			SELECT time FROM cf_agents_schedules
+			WHERE type != 'interval'
+				OR running = 0
+				OR coalesce(execution_started_at, 0) <= ${hungCutoffSeconds}
+			ORDER BY time ASC
+			LIMIT 1
+		`;
+		const recovering = this.sql`
+			SELECT execution_started_at FROM cf_agents_schedules
+			WHERE type = 'interval'
+				AND running = 1
+				AND coalesce(execution_started_at, 0) > ${hungCutoffSeconds}
+			ORDER BY execution_started_at ASC
+			LIMIT 1
+		`;
+		const readyTime = ready[0]?.time;
+		const startedAt = recovering[0]?.execution_started_at;
+		return {
+			readyScheduleTimeSeconds: typeof readyTime === 'number' ? readyTime : null,
+			hungIntervalStartedAtSeconds: typeof startedAt === 'number' ? startedAt : null,
+			pendingNotificationAttempts: this.readPendingNotificationAttempts(),
+		};
+	}
+
+	private readPendingNotificationAttempts(): number | null {
+		try {
+			const pending = this.sql`
+				SELECT attempts FROM cf_think_workflow_notifications
+				WHERE delivered_at IS NULL
+				ORDER BY created_at ASC, notification_id ASC
+				LIMIT 1
+			`;
+			const attempts = pending[0]?.attempts;
+			return typeof attempts === 'number' ? attempts : null;
+		} catch {
+			return null;
 		}
 	}
 

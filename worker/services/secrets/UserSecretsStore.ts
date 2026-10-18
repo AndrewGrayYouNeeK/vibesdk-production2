@@ -21,7 +21,6 @@ import {
 	type SecretListItem,
 	type SecretMetadata,
 	SESSION_TIMEOUT_MS,
-	CLEANUP_INTERVAL_MS,
 	STORAGE_LIMITS,
 } from './vault-types';
 import { PendingWsTicket, TicketConsumptionResult } from '../../types/auth-types';
@@ -37,6 +36,8 @@ interface VaultSession {
 
 export class UserSecretsStore extends DurableObject<Env> {
 	private session: VaultSession | null = null;
+	/** Serializes alarm writes so a clear followed by a new session cannot delete the new alarm. */
+	private alarmWrite: Promise<void> = Promise.resolve();
 	
 	/** Ticket manager for WebSocket authentication */
 	private ticketManager = new WsTicketManager();
@@ -45,7 +46,6 @@ export class UserSecretsStore extends DurableObject<Env> {
 		super(ctx, env);
 		ctx.blockConcurrencyWhile(async () => {
 			await this.initializeSchema();
-			await this.scheduleCleanup();
 		});
 	}
 
@@ -115,6 +115,7 @@ export class UserSecretsStore extends DurableObject<Env> {
 			createdAt: now,
 			lastAccessedAt: now,
 		};
+		this.scheduleSessionAlarm();
 
 		this.sendWs(ws, { type: 'vault_session_ready' });
 	}
@@ -419,6 +420,7 @@ export class UserSecretsStore extends DurableObject<Env> {
 			return { valid: false, error: 'Session expired', errorType: 'session_expired' };
 		}
 		this.session.lastAccessedAt = Date.now();
+		this.scheduleSessionAlarm();
 		return { valid: true };
 	}
 
@@ -459,6 +461,12 @@ export class UserSecretsStore extends DurableObject<Env> {
 	}
 
 	private clearSession(): void {
+		if (!this.session) return;
+		this.dropSession();
+		this.scheduleSessionAlarm();
+	}
+
+	private dropSession(): void {
 		if (this.session?.sk) {
 			this.session.sk.fill(0);
 		}
@@ -524,21 +532,44 @@ export class UserSecretsStore extends DurableObject<Env> {
 		`);
 	}
 
-	private async scheduleCleanup(): Promise<void> {
-		const alarm = await this.ctx.storage.getAlarm();
-		if (alarm === null) {
-			await this.ctx.storage.setAlarm(Date.now() + CLEANUP_INTERVAL_MS);
+	/**
+	 * The vault session lives only in memory. Arm an alarm for its timeout
+	 * while it exists, and delete the alarm once it is gone so an idle vault
+	 * does not wake forever.
+	 */
+	private enqueueSessionAlarm(): Promise<void> {
+		const write = this.alarmWrite.then(() => this.applySessionAlarm());
+		this.alarmWrite = write.then(
+			() => undefined,
+			() => undefined,
+		);
+		return write;
+	}
+
+	private scheduleSessionAlarm(): void {
+		void this.enqueueSessionAlarm().catch((error: unknown) => {
+			console.error('Failed to update the vault session alarm', error);
+		});
+	}
+
+	private async applySessionAlarm(): Promise<void> {
+		const session = this.session;
+		if (!session || session.lastAccessedAt + SESSION_TIMEOUT_MS <= Date.now()) {
+			if (session) this.dropSession();
+			await this.ctx.storage.deleteAlarm();
+			return;
 		}
+		await this.ctx.storage.setAlarm(session.lastAccessedAt + SESSION_TIMEOUT_MS);
 	}
 
 	async alarm(): Promise<void> {
 		this.cleanupExpiredSession();
-		await this.ctx.storage.setAlarm(Date.now() + CLEANUP_INTERVAL_MS);
+		await this.enqueueSessionAlarm();
 	}
 
 	private cleanupExpiredSession(): void {
 		if (this.session && Date.now() - this.session.lastAccessedAt > SESSION_TIMEOUT_MS) {
-			this.clearSession();
+			this.dropSession();
 		}
 	}
 
@@ -850,6 +881,7 @@ export class UserSecretsStore extends DurableObject<Env> {
 		}
 
 		this.session.lastAccessedAt = Date.now();
+		this.scheduleSessionAlarm();
 
 		let secretId = query.secretId;
 		if (!secretId) {

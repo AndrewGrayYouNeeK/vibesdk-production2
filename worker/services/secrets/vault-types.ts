@@ -94,9 +94,6 @@ export interface SecretListItem {
 // Session timeout (30 minutes)
 export const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
-// Cleanup interval (1 hour)
-export const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
-
 // Storage limits
 export const STORAGE_LIMITS = {
 	MAX_SECRET_VALUE_SIZE: 50 * 1024,    // 50 KB
