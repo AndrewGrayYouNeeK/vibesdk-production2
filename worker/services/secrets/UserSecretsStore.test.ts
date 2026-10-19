@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { env, runInDurableObject } from 'cloudflare:test';
+import type { DurableObjectState } from '@cloudflare/workers-types';
 import type { UserSecretsStore } from './UserSecretsStore';
 import type {} from './test-env';
 
@@ -39,6 +40,25 @@ describe('UserSecretsStore - Session Validation', () => {
 		});
 
 		expect(result.exists).toBe(false);
+	});
+});
+
+describe('UserSecretsStore - Idle alarm', () => {
+	it('does not keep an alarm when no vault session is open', async () => {
+		const stub = getUniqueStub('idle-alarm');
+
+		const result = await runInDurableObject(
+			stub,
+			async (instance: UserSecretsStore, state: DurableObjectState) => {
+				const before = await state.storage.getAlarm();
+				await instance.alarm();
+				const after = await state.storage.getAlarm();
+				return { before, after };
+			},
+		);
+
+		expect(result.before).toBeNull();
+		expect(result.after).toBeNull();
 	});
 });
 
